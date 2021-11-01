@@ -54,7 +54,7 @@ def go(args):
     ######################################
     # Use run.use_artifact(...).file() to get the train and validation artifact (args.trainval_artifact)
     # and save the returned path in train_local_pat
-    trainval_local_path = # YOUR CODE HERE
+    trainval_local_path = run.use_artifact(args.trainval_artifact).file()
     ######################################
 
     X = pd.read_csv(trainval_local_path)
@@ -69,13 +69,33 @@ def go(args):
     logger.info("Preparing sklearn pipeline")
 
     sk_pipe, processed_features = get_inference_pipeline(rf_config, args.max_tfidf_features)
+    #print(processed_features)
+    #['room_type', 'neighbourhood_group', 'minimum_nights', 'number_of_reviews', 'reviews_per_month', \
+    # 'calculated_host_listings_count', 'availability_365', 'longitude', 'latitude', 'last_review', 'name']
+    # 11 when 19 final features
+
+    #print(sk_pipe)
+    #print(sk_pipe.named_steps['preprocessor'])
+    # transform the data with this pipe for reference/ analysis
+    transformed_data = sk_pipe.named_steps['preprocessor'].fit_transform(X_train)
+    transformed_data_df = pd.DataFrame(transformed_data)#, columns = processed_features)
+    transform_artifact_name = args.transform_artifact + '.csv'
+    transformed_data_df.to_csv(transform_artifact_name, index=False)
+    logger.info("Upload transformed data to W&B")
+    trans_artifact = wandb.Artifact(
+        transform_artifact_name,
+        type=args.transform_artifact,
+        description="Pipeline transformation of train data",
+    )
+    trans_artifact.add_file(transform_artifact_name)
+    run.log_artifact(trans_artifact)
 
     # Then fit it to the X_train, y_train data
     logger.info("Fitting")
 
     ######################################
     # Fit the pipeline sk_pipe by calling the .fit method on X_train and y_train
-    # YOUR CODE HERE
+    sk_pipe.fit(X_train, y_train)
     ######################################
 
     # Compute r2 and MAE
@@ -97,7 +117,15 @@ def go(args):
     ######################################
     # Save the sk_pipe pipeline as a mlflow.sklearn model in the directory "random_forest_dir"
     # HINT: use mlflow.sklearn.save_model
-    # YOUR CODE HERE
+    export_path = os.path.join(os.getcwd(), "random_forest_dir")
+    #signature = infer_signature(X_val, y_val)
+    mlflow.sklearn.save_model(
+        sk_pipe,
+        export_path,
+        serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE,
+        #signature=signature,
+        input_example=X_val.iloc[:2],
+    )
     ######################################
 
     ######################################
@@ -106,7 +134,17 @@ def go(args):
     # type, provide a description and add rf_config as metadata. Then, use the .add_dir method of the artifact instance
     # you just created to add the "random_forest_dir" directory to the artifact, and finally use
     # run.log_artifact to log the artifact to the run
-    # YOUR CODE HERE
+    model_artifact = wandb.Artifact(
+            name=args.output_artifact,
+            type="model_export",
+            description="Random forest pipeline"
+    )
+
+    model_artifact.add_dir("random_forest_dir")
+    # log the artifact
+    run.log_artifact(model_artifact)
+    # make sure uploaded before gets deleted
+    model_artifact.wait()
     ######################################
 
     # Plot feature importance
@@ -116,10 +154,10 @@ def go(args):
     # Here we save r_squared under the "r2" key
     run.summary['r2'] = r_squared
     # Now log the variable "mae" under the key "mae".
-    # YOUR CODE HERE
+    run.summary['mae'] = mae
     ######################################
 
-    # Upload to W&B the feture importance visualization
+    # Upload to W&B the feature importance visualization
     run.log(
         {
           "feature_importance": wandb.Image(fig_feat_imp),
@@ -158,7 +196,10 @@ def get_inference_pipeline(rf_config, max_tfidf_features):
     # Build a pipeline with two steps:
     # 1 - A SimpleImputer(strategy="most_frequent") to impute missing values
     # 2 - A OneHotEncoder() step to encode the variable
-    non_ordinal_categorical_preproc = # YOUR CODE HERE
+    non_ordinal_categorical_preproc = make_pipeline(
+        SimpleImputer(strategy="most_frequent"),
+        OneHotEncoder()
+    )
     ######################################
 
     # Let's impute the numerical columns to make sure we can handle missing values
@@ -173,7 +214,7 @@ def get_inference_pipeline(rf_config, max_tfidf_features):
         "latitude"
     ]
     zero_imputer = SimpleImputer(strategy="constant", fill_value=0)
-
+    #
     # A MINIMAL FEATURE ENGINEERING step:
     # we create a feature that represents the number of days passed since the last review
     # First we impute the missing review date with an old date (because there hasn't been
@@ -208,6 +249,9 @@ def get_inference_pipeline(rf_config, max_tfidf_features):
     )
 
     processed_features = ordinal_categorical + non_ordinal_categorical + zero_imputed + ["last_review", "name"]
+    #['room_type', 'neighbourhood_group', 'minimum_nights', 'number_of_reviews', 'reviews_per_month', \
+    # 'calculated_host_listings_count', 'availability_365', 'longitude', 'latitude', 'last_review', 'name']
+    # 11 when 19 final features
 
     # Create random forest
     random_Forest = RandomForestRegressor(**rf_config)
@@ -217,7 +261,12 @@ def get_inference_pipeline(rf_config, max_tfidf_features):
     # ColumnTransformer instance that we saved in the `preprocessor` variable, and a step called "random_forest"
     # with the random forest instance that we just saved in the `random_forest` variable.
     # HINT: Use the explicit Pipeline constructor so you can assign the names to the steps, do not use make_pipeline
-    sk_pipe = # YOUR CODE HERE
+    sk_pipe = Pipeline(
+        steps=[
+            ("preprocessor", preprocessor),
+            ("random_forest", random_Forest),
+            ]
+             )
 
     return sk_pipe, processed_features
 
@@ -275,6 +324,12 @@ if __name__ == "__main__":
         required=True,
     )
 
+    parser.add_argument(
+        "--transform_artifact",
+        type=str,
+        help="Name of data uploaded to W&B for data transformation",
+        required=True,
+    )
     args = parser.parse_args()
 
     go(args)
