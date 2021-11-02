@@ -6,6 +6,7 @@ import argparse
 import logging
 import wandb
 import pandas as pd
+import numpy as np
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
@@ -24,10 +25,15 @@ def go(args):
 
     logger.info("Load data and apply basic clean on price")
     df = pd.read_csv(artifact_local_path)
+    # filtering out extreme prices
     idx = df['price'].between(args.min_price, args.max_price)
     df = df[idx].copy()
+    # filtering out no NY coordinates
     idx = df['longitude'].between(-74.25, -73.50) & df['latitude'].between(40.5, 41.2)
     df = df[idx].copy()
+    # add flag feature if no review has ever been given
+    df['no_review'] = np.where(df.last_review.isna(), 1, 0)
+
     # Convert last_review to datetime
     df['last_review'] = pd.to_datetime(df['last_review'])
 

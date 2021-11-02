@@ -190,6 +190,7 @@ def get_inference_pipeline(rf_config, max_tfidf_features):
     # NOTE: we do not need to impute room_type because the type of the room
     # is mandatory on the websites, so missing values are not possible in production
     # (nor during training). That is not true for neighbourhood_group
+
     ordinal_categorical_preproc = OrdinalEncoder()
 
     ######################################
@@ -211,7 +212,8 @@ def get_inference_pipeline(rf_config, max_tfidf_features):
         "calculated_host_listings_count",
         "availability_365",
         "longitude",
-        "latitude"
+        "latitude",
+        "no_review"
     ]
     zero_imputer = SimpleImputer(strategy="constant", fill_value=0)
     #
@@ -249,9 +251,11 @@ def get_inference_pipeline(rf_config, max_tfidf_features):
     )
 
     processed_features = ordinal_categorical + non_ordinal_categorical + zero_imputed + ["last_review", "name"]
-    #['room_type', 'neighbourhood_group', 'minimum_nights', 'number_of_reviews', 'reviews_per_month', \
-    # 'calculated_host_listings_count', 'availability_365', 'longitude', 'latitude', 'last_review', 'name']
-    # 11 when 19 final features
+    #ordinal_categorical ['room_type', 0
+    #non_ordinal_categorical 'neighbourhood_group', 1-5
+    #zero_imputed 'minimum_nights', 'number_of_reviews', 'reviews_per_month', 'calculated_host_listings_count', 'availability_365', 'longitude', 'latitude', 6-12
+    # 'last_review', 13
+    # 'name'] tfidf 10 feat 14-23
 
     # Create random forest
     random_Forest = RandomForestRegressor(**rf_config)

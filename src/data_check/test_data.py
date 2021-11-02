@@ -22,6 +22,7 @@ def test_column_names(data):
         "reviews_per_month",
         "calculated_host_listings_count",
         "availability_365",
+        "no_review"
     ]
 
     these_columns = data.columns.values
