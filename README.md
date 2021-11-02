@@ -30,6 +30,7 @@ In this project you will build such a pipeline.
   * [Release the pipeline](#release-the-pipeline)
   * [Train the model on a new data sample](#train-the-model-on-a-new-data-sample)
 - [Cleaning up](#cleaning-up)
+- [Discussion](#Discussion)
 
 ## Preliminary steps
 ### Fork the Starter kit
@@ -563,6 +564,16 @@ This will drop rows in the dataset that are not in the proper geolocation.
 Then commit your change, make a new release (for example ``1.0.1``) and retry (of course you need to use 
 ``-v 1.0.1`` when calling mlflow this time). Now the run should succeed and voit la', 
 you have trained your new model on the new data.
+
+## Discussion
+### W&B Link
+Here is the link to the public W&B project:
+https://wandb.ai/dora/nyc_airbnb
+
+### Further steps
+- Additional feature analysis 
+- Additional feature transformations
+- Alternative modelling methods
 
 ## License
 
